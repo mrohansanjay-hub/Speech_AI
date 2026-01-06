@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Audio to Text</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center px-4">
+
+<div class="bg-white p-6 rounded-xl w-full max-w-xl shadow-2xl">
+<h1 class="text-2xl font-bold text-center">🎙 Audio to Text</h1>
+
+<input type="file" id="audioFile" class="mt-4 w-full border p-2 rounded">
+
+<button id="convertBtn" onclick="convert()" class="mt-4 w-full bg-indigo-600 text-white py-2 rounded font-semibold">
+Convert
+</button>
+
+<p id="warning" class="text-red-500 text-sm mt-2"></p>
+
+<textarea id="result" rows="6" class="w-full mt-4 border p-2 rounded"></textarea>
+
+<button id="refineBtn" onclick="refine()" class="mt-3 w-full bg-green-600 text-white py-2 rounded font-semibold">
+Refine
+</button>
+
+<select id="lang" class="mt-3 w-full border p-2 rounded">
+<option value="English">English</option>
+<option value="Telugu">Telugu</option>
+<option value="Hindi">Hindi</option>
+<option value="Spanish">Spanish</option>
+<option value="French">French</option>
+<option value="German">German</option>
+</select>
+
+<button id="translateBtn" onclick="translateText()" class="mt-3 w-full bg-purple-600 text-white py-2 rounded font-semibold">
+Translate
+</button>
+</div>
+
+<script>
+let detectedLanguage = "";
+
+async function convert(){
+    if(!audioFile.files.length){ alert("Please select audio"); return; }
+
+    convertBtn.textContent = "Converting...";
+    convertBtn.disabled = true;
+
+    const fd = new FormData();
+    fd.append("audio", audioFile.files[0]);
+
+    try {
+        const res = await fetch("http://127.0.0.1:5000/transcribe", { method:"POST", body:fd });
+        const data = await res.json();
+
+        if(data.error){ result.value = "⚠ "+data.error; }
+        else{
+            result.value = data.text || "";
+            detectedLanguage = data.language || "unknown";
+            warning.textContent = "";
+        }
+    } catch(e){
+        result.value = "⚠ Network error"; console.error(e);
+    }
+
+    convertBtn.textContent = "Convert";
+    convertBtn.disabled = false;
+}
+
+async function refine(){
+    if(!result.value.trim()){ alert("Nothing to refine"); return; }
+
+    refineBtn.textContent = "Refining...";
+    refineBtn.disabled = true;
+
+    try {
+        const res = await fetch("http://127.0.0.1:5000/refine", {
+            method:"POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ text: result.value, language: detectedLanguage })
+        });
+        const data = await res.json();
+        if(data.refined_text) result.value = data.refined_text;
+        else if(data.error) alert("Refine Error: "+data.error);
+    } catch(e){
+        alert("Network error"); console.error(e);
+    }
+
+    refineBtn.textContent = "Refine";
+    refineBtn.disabled = false;
+}
+
+async function translateText(){
+    if(!result.value.trim()){ alert("Nothing to translate"); return; }
+
+    translateBtn.textContent = "Translating...";
+    translateBtn.disabled = true;
+
+    try {
+        const res = await fetch("http://127.0.0.1:5000/translate", {
+            method:"POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ text: result.value, target: lang.value })
+        });
+        const data = await res.json();
+        if(data.translated_text) result.value = data.translated_text;
+        else if(data.error) alert("Translate Error: "+data.error);
+    } catch(e){
+        alert("Network error"); console.error(e);
+    }
+
+    translateBtn.textContent = "Translate";
+    translateBtn.disabled = false;
+}
+</script>
+
+</body>
+</html>
